@@ -7,15 +7,6 @@ function QuerySection() {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const suggestions = [
-    "How many books have I read?",
-    "What are my top rated books?",
-    "Show me fiction books",
-    "What's on my reading list?",
-    "Books rated above 8",
-    "Show me library statistics",
-  ];
-
   const handleQuery = async (q = question) => {
     if (!q.trim()) return;
     setLoading(true);
@@ -58,21 +49,6 @@ function QuerySection() {
         {answer && (
           <div className="query-answer">{answer}</div>
         )}
-
-        <div className="query-suggestions">
-          {suggestions.map((s, i) => (
-            <button
-              key={i}
-              className="suggestion-chip"
-              onClick={() => {
-                setQuestion(s);
-                handleQuery(s);
-              }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -757,7 +733,7 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-content">
-          <div className="logo">Media<span>Tracker</span></div>
+          <div className="logo">z<span>Books</span></div>
           <nav className="nav-tabs">
             <button
               className={`nav-tab ${activeTab === 'books' ? 'active' : ''}`}
@@ -777,8 +753,6 @@ function App() {
 
       <main className="main-content">
         <QuerySection />
-
-        <StatsCards stats={stats} />
 
         <div className="toolbar">
           <div className="filters">
