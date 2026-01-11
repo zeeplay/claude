@@ -83,3 +83,13 @@ export const queryApi = {
     body: JSON.stringify({ question }),
   }),
 };
+
+// General Notes API
+export const notesApi = {
+  get: () => request('/api/notes'),
+
+  save: (content) => request('/api/notes', {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  }),
+};

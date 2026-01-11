@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from database import engine, get_db, Base
-from models import Book, Movie
+from models import Book, Movie, GeneralNotes
 from schemas import (
     BookCreate,
     BookUpdate,
@@ -14,6 +14,9 @@ from schemas import (
     MovieResponse,
     QueryRequest,
     QueryResponse,
+    GeneralNotesCreate,
+    GeneralNotesUpdate,
+    GeneralNotesResponse,
 )
 import crud
 from query_parser import NaturalLanguageQueryParser
@@ -139,6 +142,34 @@ def get_movie_stats(db: Session = Depends(get_db)):
 @app.get("/api/stats")
 def get_all_stats(db: Session = Depends(get_db)):
     return {"books": crud.get_book_stats(db), "movies": crud.get_movie_stats(db)}
+
+
+# General Notes endpoints
+@app.get("/api/notes", response_model=Optional[GeneralNotesResponse])
+def get_general_notes(db: Session = Depends(get_db)):
+    # Get the most recent note (we'll only store one)
+    note = db.query(GeneralNotes).order_by(GeneralNotes.updated_at.desc()).first()
+    return note
+
+
+@app.post("/api/notes", response_model=GeneralNotesResponse)
+def create_or_update_general_notes(notes: GeneralNotesCreate, db: Session = Depends(get_db)):
+    # Check if a note already exists
+    existing_note = db.query(GeneralNotes).first()
+
+    if existing_note:
+        # Update existing note
+        existing_note.content = notes.content
+        db.commit()
+        db.refresh(existing_note)
+        return existing_note
+    else:
+        # Create new note
+        new_note = GeneralNotes(content=notes.content)
+        db.add(new_note)
+        db.commit()
+        db.refresh(new_note)
+        return new_note
 
 
 # Natural Language Query endpoint

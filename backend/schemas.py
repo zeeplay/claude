@@ -87,3 +87,25 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     results: Optional[list] = None
+
+
+# General Notes Schemas
+class GeneralNotesBase(BaseModel):
+    content: str
+
+
+class GeneralNotesCreate(GeneralNotesBase):
+    pass
+
+
+class GeneralNotesUpdate(BaseModel):
+    content: str
+
+
+class GeneralNotesResponse(GeneralNotesBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

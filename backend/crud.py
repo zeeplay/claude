@@ -22,7 +22,9 @@ def get_books(
     query = db.query(Book)
 
     if status:
-        query = query.filter(Book.status == status)
+        # Handle multiple statuses separated by comma
+        statuses = [s.strip() for s in status.split(',')]
+        query = query.filter(Book.status.in_(statuses))
     if type:
         query = query.filter(Book.type == type)
     if search:
@@ -82,7 +84,9 @@ def get_movies(
     query = db.query(Movie)
 
     if status:
-        query = query.filter(Movie.status == status)
+        # Handle multiple statuses separated by comma
+        statuses = [s.strip() for s in status.split(',')]
+        query = query.filter(Movie.status.in_(statuses))
     if genre:
         query = query.filter(Movie.genre == genre)
     if search:

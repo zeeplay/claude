@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { booksApi, moviesApi, statsApi, queryApi } from './api';
+import { booksApi, moviesApi, statsApi, queryApi, notesApi } from './api';
+
+// Date formatting helper
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+
+  const date = new Date(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear().toString().slice(-2);
+
+  return `${day} ${month} ${year}`;
+};
 
 // Query Component
 function QuerySection() {
@@ -49,6 +62,69 @@ function QuerySection() {
         {answer && (
           <div className="query-answer">{answer}</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// General Notes Component
+function GeneralNotesSection() {
+  const [notes, setNotes] = useState('');
+  const [savedNotes, setSavedNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    // Load notes on component mount
+    const loadNotes = async () => {
+      try {
+        const data = await notesApi.get();
+        if (data && data.content) {
+          setNotes(data.content);
+          setSavedNotes(data.content);
+        }
+      } catch (error) {
+        console.error('Error loading notes:', error);
+      }
+    };
+    loadNotes();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await notesApi.save(notes);
+      setSavedNotes(notes);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    }
+    setSaving(false);
+  };
+
+  const hasChanges = notes !== savedNotes;
+
+  return (
+    <div className="notes-section">
+      <div className="notes-container">
+        <div className="notes-header">
+          <h3 className="notes-title">General Notes</h3>
+          <button
+            className="save-notes-btn"
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+          >
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Notes'}
+          </button>
+        </div>
+        <textarea
+          className="notes-textarea"
+          placeholder="Add your general notes here... You can use this space for lists, reminders, or any other information you want to keep track of."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
       </div>
     </div>
   );
@@ -465,7 +541,7 @@ function StatusBadge({ status }) {
 }
 
 // Books Table Component
-function BooksTable({ books, onEdit, onDelete }) {
+function BooksTable({ books, onRowClick, sortColumn, sortDirection, onSort }) {
   if (books.length === 0) {
     return (
       <div className="empty-state">
@@ -475,25 +551,42 @@ function BooksTable({ books, onEdit, onDelete }) {
     );
   }
 
+  const renderSortIcon = (column) => {
+    if (sortColumn !== column) return <span className="sort-icon">↕</span>;
+    return sortDirection === 'asc' ? <span className="sort-icon active">↑</span> : <span className="sort-icon active">↓</span>;
+  };
+
   return (
     <div className="table-container">
       <table className="table">
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Author</th>
-            <th>Source</th>
-            <th>Status</th>
-            <th>Rating</th>
-            <th>Type</th>
-            <th>Date Read</th>
-            <th>Notes</th>
-            <th>Actions</th>
+            <th onClick={() => onSort('name')} className="sortable-header">
+              Title {renderSortIcon('name')}
+            </th>
+            <th onClick={() => onSort('author')} className="sortable-header">
+              Author {renderSortIcon('author')}
+            </th>
+            <th onClick={() => onSort('downloaded')} className="sortable-header">
+              Source {renderSortIcon('downloaded')}
+            </th>
+            <th onClick={() => onSort('status')} className="sortable-header">
+              Status {renderSortIcon('status')}
+            </th>
+            <th onClick={() => onSort('rating')} className="sortable-header">
+              Rating {renderSortIcon('rating')}
+            </th>
+            <th onClick={() => onSort('type')} className="sortable-header">
+              Type {renderSortIcon('type')}
+            </th>
+            <th onClick={() => onSort('date_read')} className="sortable-header">
+              Date Read {renderSortIcon('date_read')}
+            </th>
           </tr>
         </thead>
         <tbody>
           {books.map(book => (
-            <tr key={book.id}>
+            <tr key={book.id} onClick={() => onRowClick(book)} className="clickable-row">
               <td className="title-cell">{book.name}</td>
               <td className="author-cell">{book.author || '-'}</td>
               <td className="source-cell">{book.downloaded || '-'}</td>
@@ -504,25 +597,7 @@ function BooksTable({ books, onEdit, onDelete }) {
                   <span className="type-badge">{book.type}</span>
                 )}
               </td>
-              <td>{book.date_read || '-'}</td>
-              <td>
-                {book.notes && (
-                  <span className="notes-preview" title={book.notes}>
-                    {book.notes}
-                  </span>
-                )}
-              </td>
-              <td className="actions-cell">
-                <button className="action-btn" onClick={() => onEdit(book)}>
-                  Edit
-                </button>
-                <button
-                  className="action-btn delete"
-                  onClick={() => onDelete(book.id)}
-                >
-                  Delete
-                </button>
-              </td>
+              <td>{formatDate(book.date_read)}</td>
             </tr>
           ))}
         </tbody>
@@ -532,7 +607,7 @@ function BooksTable({ books, onEdit, onDelete }) {
 }
 
 // Movies Table Component
-function MoviesTable({ movies, onEdit, onDelete }) {
+function MoviesTable({ movies, onRowClick, sortColumn, sortDirection, onSort }) {
   if (movies.length === 0) {
     return (
       <div className="empty-state">
@@ -542,26 +617,45 @@ function MoviesTable({ movies, onEdit, onDelete }) {
     );
   }
 
+  const renderSortIcon = (column) => {
+    if (sortColumn !== column) return <span className="sort-icon">↕</span>;
+    return sortDirection === 'asc' ? <span className="sort-icon active">↑</span> : <span className="sort-icon active">↓</span>;
+  };
+
   return (
     <div className="table-container">
       <table className="table">
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Director</th>
-            <th>Source</th>
-            <th>Status</th>
-            <th>Rating</th>
-            <th>Genre</th>
-            <th>Year</th>
-            <th>Date Watched</th>
-            <th>Notes</th>
-            <th>Actions</th>
+            <th onClick={() => onSort('title')} className="sortable-header">
+              Title {renderSortIcon('title')}
+            </th>
+            <th onClick={() => onSort('director')} className="sortable-header">
+              Director {renderSortIcon('director')}
+            </th>
+            <th onClick={() => onSort('source')} className="sortable-header">
+              Source {renderSortIcon('source')}
+            </th>
+            <th onClick={() => onSort('status')} className="sortable-header">
+              Status {renderSortIcon('status')}
+            </th>
+            <th onClick={() => onSort('rating')} className="sortable-header">
+              Rating {renderSortIcon('rating')}
+            </th>
+            <th onClick={() => onSort('genre')} className="sortable-header">
+              Genre {renderSortIcon('genre')}
+            </th>
+            <th onClick={() => onSort('year')} className="sortable-header">
+              Year {renderSortIcon('year')}
+            </th>
+            <th onClick={() => onSort('date_watched')} className="sortable-header">
+              Date Watched {renderSortIcon('date_watched')}
+            </th>
           </tr>
         </thead>
         <tbody>
           {movies.map(movie => (
-            <tr key={movie.id}>
+            <tr key={movie.id} onClick={() => onRowClick(movie)} className="clickable-row">
               <td className="title-cell">{movie.title}</td>
               <td className="author-cell">{movie.director || '-'}</td>
               <td className="source-cell">{movie.source || '-'}</td>
@@ -573,29 +667,153 @@ function MoviesTable({ movies, onEdit, onDelete }) {
                 )}
               </td>
               <td>{movie.year || '-'}</td>
-              <td>{movie.date_watched || '-'}</td>
-              <td>
-                {movie.notes && (
-                  <span className="notes-preview" title={movie.notes}>
-                    {movie.notes}
-                  </span>
-                )}
-              </td>
-              <td className="actions-cell">
-                <button className="action-btn" onClick={() => onEdit(movie)}>
-                  Edit
-                </button>
-                <button
-                  className="action-btn delete"
-                  onClick={() => onDelete(movie.id)}
-                >
-                  Delete
-                </button>
-              </td>
+              <td>{formatDate(movie.date_watched)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Book Detail View Component
+function BookDetailView({ book, onClose, onEdit, onDelete }) {
+  return (
+    <div className="detail-overlay" onClick={onClose}>
+      <div className="detail-view" onClick={e => e.stopPropagation()}>
+        <div className="detail-header">
+          <button className="back-btn" onClick={onClose}>← Back to List</button>
+          <div className="detail-actions">
+            <button className="action-btn" onClick={() => onEdit(book)}>
+              Edit
+            </button>
+            <button className="action-btn delete" onClick={() => onDelete(book.id)}>
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <div className="detail-content">
+          <h1 className="detail-title">{book.name}</h1>
+
+          <div className="detail-grid">
+            <div className="detail-field">
+              <label className="detail-label">Author</label>
+              <div className="detail-value">{book.author || '-'}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Source</label>
+              <div className="detail-value">{book.downloaded || '-'}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Status</label>
+              <div className="detail-value"><StatusBadge status={book.status} /></div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Rating</label>
+              <div className="detail-value"><RatingDisplay rating={book.rating} /></div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Type</label>
+              <div className="detail-value">
+                {book.type ? <span className="type-badge">{book.type}</span> : '-'}
+              </div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Date Read</label>
+              <div className="detail-value">{formatDate(book.date_read)}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Format</label>
+              <div className="detail-value">{book.format || '-'}</div>
+            </div>
+          </div>
+
+          {book.notes && (
+            <div className="detail-notes">
+              <label className="detail-label">Notes</label>
+              <div className="notes-content">{book.notes}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Movie Detail View Component
+function MovieDetailView({ movie, onClose, onEdit, onDelete }) {
+  return (
+    <div className="detail-overlay" onClick={onClose}>
+      <div className="detail-view" onClick={e => e.stopPropagation()}>
+        <div className="detail-header">
+          <button className="back-btn" onClick={onClose}>← Back to List</button>
+          <div className="detail-actions">
+            <button className="action-btn" onClick={() => onEdit(movie)}>
+              Edit
+            </button>
+            <button className="action-btn delete" onClick={() => onDelete(movie.id)}>
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <div className="detail-content">
+          <h1 className="detail-title">{movie.title}</h1>
+
+          <div className="detail-grid">
+            <div className="detail-field">
+              <label className="detail-label">Director</label>
+              <div className="detail-value">{movie.director || '-'}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Source</label>
+              <div className="detail-value">{movie.source || '-'}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Status</label>
+              <div className="detail-value"><StatusBadge status={movie.status} /></div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Rating</label>
+              <div className="detail-value"><RatingDisplay rating={movie.rating} /></div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Genre</label>
+              <div className="detail-value">
+                {movie.genre ? <span className="type-badge">{movie.genre}</span> : '-'}
+              </div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Year</label>
+              <div className="detail-value">{movie.year || '-'}</div>
+            </div>
+
+            <div className="detail-field">
+              <label className="detail-label">Date Watched</label>
+              <div className="detail-value">{formatDate(movie.date_watched)}</div>
+            </div>
+          </div>
+
+          {movie.notes && (
+            <div className="detail-notes">
+              <label className="detail-label">Notes</label>
+              <div className="notes-content">{movie.notes}</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -608,8 +826,14 @@ function App() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState([]);
   const [typeFilter, setTypeFilter] = useState('');
+
+  // Sorting state
+  const [bookSortColumn, setBookSortColumn] = useState('date_read');
+  const [bookSortDirection, setBookSortDirection] = useState('desc');
+  const [movieSortColumn, setMovieSortColumn] = useState('date_watched');
+  const [movieSortDirection, setMovieSortDirection] = useState('desc');
 
   // Modal state
   const [showBookModal, setShowBookModal] = useState(false);
@@ -617,12 +841,43 @@ function App() {
   const [editingBook, setEditingBook] = useState(null);
   const [editingMovie, setEditingMovie] = useState(null);
 
+  // Detail view state
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedMovie, setSelectedMovie] = useState(null);
+
+  // Sorting function
+  const sortData = useCallback((data, column, direction) => {
+    return [...data].sort((a, b) => {
+      let aVal = a[column];
+      let bVal = b[column];
+
+      // Handle null/undefined values - push them to the end
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      // Convert to lowercase for string comparison
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
       if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
+      if (statusFilter.length > 0) {
+        // Only send status filter if not filtering by "no status"
+        const statuses = statusFilter.filter(s => s !== 'none');
+        if (statuses.length > 0) {
+          params.status = statuses.join(',');
+        }
+      }
       if (typeFilter && activeTab === 'books') params.type = typeFilter;
       if (typeFilter && activeTab === 'movies') params.genre = typeFilter;
 
@@ -632,14 +887,30 @@ function App() {
         statsApi.getAll(),
       ]);
 
-      setBooks(booksData);
-      setMovies(moviesData);
+      // Filter for "no status" if selected
+      let filteredBooks = booksData;
+      let filteredMovies = moviesData;
+
+      if (statusFilter.includes('none')) {
+        if (activeTab === 'books') {
+          filteredBooks = filteredBooks.filter(book => !book.status);
+        } else {
+          filteredMovies = filteredMovies.filter(movie => !movie.status);
+        }
+      }
+
+      // Apply sorting
+      const sortedBooks = sortData(filteredBooks, bookSortColumn, bookSortDirection);
+      const sortedMovies = sortData(filteredMovies, movieSortColumn, movieSortDirection);
+
+      setBooks(sortedBooks);
+      setMovies(sortedMovies);
       setStats(statsData);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
     setLoading(false);
-  }, [search, statusFilter, typeFilter, activeTab]);
+  }, [search, statusFilter, typeFilter, activeTab, bookSortColumn, bookSortDirection, movieSortColumn, movieSortDirection, sortData]);
 
   useEffect(() => {
     fetchData();
@@ -709,18 +980,52 @@ function App() {
     }
   };
 
+  // Sorting handlers
+  const handleBookSort = (column) => {
+    if (bookSortColumn === column) {
+      // Toggle direction if same column
+      setBookSortDirection(bookSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setBookSortColumn(column);
+      setBookSortDirection('asc');
+    }
+  };
+
+  const handleMovieSort = (column) => {
+    if (movieSortColumn === column) {
+      // Toggle direction if same column
+      setMovieSortDirection(movieSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setMovieSortColumn(column);
+      setMovieSortDirection('asc');
+    }
+  };
+
+  // Status filter handlers
+  const handleStatusFilterToggle = (status) => {
+    setStatusFilter(prev => {
+      if (prev.includes(status)) {
+        return prev.filter(s => s !== status);
+      } else {
+        return [...prev, status];
+      }
+    });
+  };
+
   const bookStatusOptions = [
-    { value: '', label: 'All Status' },
     { value: 'read', label: 'Read' },
     { value: 'reading', label: 'Reading' },
     { value: 'want_to_read', label: 'Want to Read' },
+    { value: 'none', label: 'No Status' },
   ];
 
   const movieStatusOptions = [
-    { value: '', label: 'All Status' },
     { value: 'watched', label: 'Watched' },
     { value: 'watching', label: 'Watching' },
     { value: 'want_to_watch', label: 'Want to Watch' },
+    { value: 'none', label: 'No Status' },
   ];
 
   const bookTypeOptions = [
@@ -753,18 +1058,25 @@ function App() {
 
       <main className="main-content">
         <QuerySection />
+        <GeneralNotesSection />
 
         <div className="toolbar">
           <div className="filters">
-            <select
-              className="filter-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              {(activeTab === 'books' ? bookStatusOptions : movieStatusOptions).map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <div className="status-filter-group">
+              <label className="filter-label">Status:</label>
+              <div className="checkbox-group">
+                {(activeTab === 'books' ? bookStatusOptions : movieStatusOptions).map(opt => (
+                  <label key={opt.value} className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={statusFilter.includes(opt.value)}
+                      onChange={() => handleStatusFilterToggle(opt.value)}
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
             {activeTab === 'books' && (
               <select
@@ -808,14 +1120,18 @@ function App() {
         ) : activeTab === 'books' ? (
           <BooksTable
             books={books}
-            onEdit={handleEditBook}
-            onDelete={handleDeleteBook}
+            onRowClick={setSelectedBook}
+            sortColumn={bookSortColumn}
+            sortDirection={bookSortDirection}
+            onSort={handleBookSort}
           />
         ) : (
           <MoviesTable
             movies={movies}
-            onEdit={handleEditMovie}
-            onDelete={handleDeleteMovie}
+            onRowClick={setSelectedMovie}
+            sortColumn={movieSortColumn}
+            sortDirection={movieSortDirection}
+            onSort={handleMovieSort}
           />
         )}
       </main>
@@ -839,6 +1155,36 @@ function App() {
             setEditingMovie(null);
           }}
           onSave={handleSaveMovie}
+        />
+      )}
+
+      {selectedBook && (
+        <BookDetailView
+          book={selectedBook}
+          onClose={() => setSelectedBook(null)}
+          onEdit={(book) => {
+            setSelectedBook(null);
+            handleEditBook(book);
+          }}
+          onDelete={(id) => {
+            setSelectedBook(null);
+            handleDeleteBook(id);
+          }}
+        />
+      )}
+
+      {selectedMovie && (
+        <MovieDetailView
+          movie={selectedMovie}
+          onClose={() => setSelectedMovie(null)}
+          onEdit={(movie) => {
+            setSelectedMovie(null);
+            handleEditMovie(movie);
+          }}
+          onDelete={(id) => {
+            setSelectedMovie(null);
+            handleDeleteMovie(id);
+          }}
         />
       )}
     </div>
